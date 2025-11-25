@@ -1,4 +1,4 @@
-name: Deploy to Cloud Run
+name: deploy
 
 on:
   push:
@@ -11,30 +11,31 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v1
         with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          project_id: smarttrack2project
           service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
 
-      - name: Configure docker for GCP
+      - name: Configure docker auth for Artifact Registry
         run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
 
       - name: Build & Push Docker Image
+        env:
+          IMAGE: asia-southeast1-docker.pkg.dev/smarttrack2project/fastapi-repo/fastapi-postgres-demo
         run: |
-          IMAGE="asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fastapi-repo/fastapi-postgres-demo"
-          docker build -t $IMAGE .
-          docker push $IMAGE
+          docker build -t $IMAGE:$GITHUB_SHA .
+          docker push $IMAGE:$GITHUB_SHA
 
       - name: Deploy to Cloud Run
+        env:
+          IMAGE: asia-southeast1-docker.pkg.dev/smarttrack2project/fastapi-repo/fastapi-postgres-demo
         run: |
-          IMAGE="asia-southeast1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/fastapi-repo/fastapi-postgres-demo"
           gcloud run deploy fastapi-postgres-demo \
-            --image $IMAGE \
+            --image $IMAGE:$GITHUB_SHA \
             --region asia-southeast1 \
             --platform managed \
-            --allow-unauthenticated \
-            --add-cloudsql-instances smarttrack2project:asia-southeast1:postgres \
-            --set-env-vars DATABASE_URL=$(cat .env.cloudrun)
+            --allow-unauthenticated
