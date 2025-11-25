@@ -2,44 +2,47 @@ name: deploy
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
-
     permissions:
       contents: read
       id-token: write
+
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: smarttrack2project
+      REGION: asia-southeast1
+      REPO: fastapi-repo
+      IMAGE: asia-southeast1-docker.pkg.dev/smarttrack2project/fastapi-repo/fastapi-postgres-demo:${{ github.sha }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # -------------------------
-      # GOOGLE AUTH (WIF)
-      # -------------------------
-      - id: auth
-        name: Authenticate to Google Cloud
+      - name: Google Auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: "projects/729893918995/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
-          service_account: "github-deploy@smarttrack2project.iam.gserviceaccount.com"
-          audience: "//iam.googleapis.com/projects/729893918995/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          workload_identity_provider: projects/729893918995/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deploy@smarttrack2project.iam.gserviceaccount.com
 
-      - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+      - name: Configure docker auth for Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: asia-southeast1-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
 
       - name: Build & Push Docker Image
         run: |
-          IMAGE="asia-southeast1-docker.pkg.dev/smarttrack2project/fastapi-repo/fastapi-postgres-demo"
-          docker build -t $IMAGE:$GITHUB_SHA .
-          docker push $IMAGE:$GITHUB_SHA
+          docker build -t $IMAGE .
+          docker push $IMAGE
 
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: "fastapi-postgres-demo"
-          region: "asia-southeast1"
-          image: "asia-southeast1-docker.pkg.dev/smarttrack2project/fastapi-repo/fastapi-postgres-demo:$GITHUB_SHA"
+          service: fastapi-postgres-demo
+          image: ${{ env.IMAGE }}
+          region: ${{ env.REGION }}
