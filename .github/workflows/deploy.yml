@@ -2,21 +2,21 @@ name: deploy
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
+
+env:
+  PROJECT_ID: smarttrack2project
+  REGION: asia-southeast1
+  REPOSITORY: fastapi-repo
+  SERVICE: fastapi-postgres-demo
 
 jobs:
   deploy:
-    permissions:
-      contents: read
-      id-token: write
-
     runs-on: ubuntu-latest
 
-    env:
-      PROJECT_ID: smarttrack2project
-      REGION: asia-southeast1
-      REPO: fastapi-repo
-      IMAGE: asia-southeast1-docker.pkg.dev/smarttrack2project/fastapi-repo/fastapi-postgres-demo:${{ github.sha }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
 
     steps:
       - name: Checkout code
@@ -25,24 +25,28 @@ jobs:
       - name: Google Auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/729893918995/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-          service_account: github-deploy@smarttrack2project.iam.gserviceaccount.com
+          workload_identity_provider: "projects/729893918995/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          service_account: "github-deploy@smarttrack2project.iam.gserviceaccount.com"
 
-      - name: Configure docker auth for Artifact Registry
-        uses: docker/login-action@v3
-        with:
-          registry: asia-southeast1-docker.pkg.dev
-          username: oauth2accesstoken
-          password: ${{ steps.auth.outputs.access_token }}
-
-      - name: Build & Push Docker Image
+      - name: Configure Docker (WIF-Compatible)
         run: |
-          docker build -t $IMAGE .
-          docker push $IMAGE
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build & Push Docker image
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA}"
+          echo "Building $IMAGE"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+        env:
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+          REGION: ${{ env.REGION }}
+          REPOSITORY: ${{ env.REPOSITORY }}
+          SERVICE: ${{ env.SERVICE }}
 
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: fastapi-postgres-demo
-          image: ${{ env.IMAGE }}
+          service: ${{ env.SERVICE }}
+          image: "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
           region: ${{ env.REGION }}
