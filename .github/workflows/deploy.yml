@@ -11,46 +11,64 @@ env:
   REPOSITORY: fastapi-repo
   SERVICE_NAME: fastapi-postgres-demo
 
+permissions:
+  id-token: write       # REQUIRED (ให้ github-actions/auth ใช้ OIDC Token)
+  contents: read
+  actions: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # ------------------------------------------------------------
+      # 0) Checkout source code
+      # ------------------------------------------------------------
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      ###############################################################
-      # 1) Authenticate to Google Cloud using Service Account (OIDC)
-      ###############################################################
-      - name: Google auth
-        id: auth
+
+      # ------------------------------------------------------------
+      # 1) Authenticate to Google Cloud using OIDC
+      # ------------------------------------------------------------
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          token_format: access_token
-          workload_identity_provider: "projects/10385314100175/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          workload_identity_provider: "projects/1064347068142/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
           service_account: "github-deploy@smarttrack2project.iam.gserviceaccount.com"
 
-      ################################################################
-      # 2) Configure Docker for Artifact Registry
-      ################################################################
-      - name: Configure Artifact Registry Docker Auth
-        run: |
-          gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
 
-      ################################################################
-      # 3) Build + Push Docker Image
-      ################################################################
+      # ------------------------------------------------------------
+      # 2) Setup gcloud CLI
+      # ------------------------------------------------------------
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+
+      # ------------------------------------------------------------
+      # 3) Configure Docker for Artifact Registry
+      # ------------------------------------------------------------
+      - name: Configure docker auth for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${REGION}-docker.pkg.dev --quiet
+
+
+      # ------------------------------------------------------------
+      # 4) Build & Push Docker Image
+      # ------------------------------------------------------------
       - name: Build & Push Docker Image
         run: |
-          IMAGE="asia-southeast1-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE_NAME:${GITHUB_SHA}"
-          echo "Building Image: $IMAGE"
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
-          echo "image=$IMAGE" >> $GITHUB_ENV
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE_NAME}:${GITHUB_SHA}"
 
-      ################################################################
-      # 4) Deploy to Cloud Run
-      ################################################################
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+          docker build -t $IMAGE .
+          docker push $IMAGE
+
+
+      # ------------------------------------------------------------
+      # 5) Deploy to Cloud Run
+      # ------------------------------------------------------------
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy "$SERVICE_NAME" \
