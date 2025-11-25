@@ -1,27 +1,48 @@
-# Base image
-FROM python:3.11-slim
+# ================================
+# 1) Build Stage
+# ================================
+FROM python:3.11-slim AS builder
 
-# Working directory
 WORKDIR /app
 
-# Copy dependency file
+# ลดขนาด image + เตรียมระบบให้รองรับ psycopg2/asyncpg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# ติดตั้ง dependencies
 COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
+# ================================
+# 2) Final Runtime Image
+# ================================
+FROM python:3.11-slim AS runner
+
+WORKDIR /app
+
+# ติดตั้ง libpq-client ให้รองรับ asyncpg/psycopg2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# คัดลอก dependencies จาก builder
+COPY --from=builder /root/.local /root/.local
+
+# เพิ่ม PATH เพื่อให้เห็น pip ที่ install แบบ --user
+ENV PATH=/root/.local/bin:$PATH
+
+# คัดลอกโค้ดทั้งหมด
 COPY . .
 
-# Cloud Run ต้องการให้แอพฟังบน PORT ที่กำหนดใน ENV
-# ใส่ค่า default เพื่อรัน local แต่เมื่อขึ้น Cloud Run มันจะ override ด้วย $PORT
+# Cloud Run จะส่ง ENV PORT มาอัตโนมัติ
 ENV PORT=8080
 
-# Expose port (optional เพราะ Cloud Run ไม่ได้ใช้ EXPOSE)
+# เปิดพอร์ต 8080 สำหรับ Cloud Run
 EXPOSE 8080
 
-# ใช้ gunicorn + uvicorn worker เพื่อให้รองรับ production
-CMD exec gunicorn main:app \
-    --bind 0.0.0.0:$PORT \
-    --workers 1 \
-    --worker-class uvicorn.workers.UvicornWorker
+# คำสั่งรัน FastAPI ด้วย Uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
