@@ -2,13 +2,8 @@ name: deploy
 
 on:
   push:
-    branches: [ "main" ]
-
-env:
-  PROJECT_ID: smarttrack2project
-  REGION: asia-southeast1
-  REPOSITORY: fastapi-repo
-  SERVICE: fastapi-postgres-demo
+    branches:
+      - main
 
 jobs:
   deploy:
@@ -28,25 +23,22 @@ jobs:
           workload_identity_provider: "projects/729893918995/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
           service_account: "github-deploy@smarttrack2project.iam.gserviceaccount.com"
 
-      - name: Configure Docker (WIF-Compatible)
+      - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+          gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
 
-      - name: Build & Push Docker image
+      - name: Build Docker Image
         run: |
-          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA}"
-          echo "Building $IMAGE"
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
-        env:
-          PROJECT_ID: ${{ env.PROJECT_ID }}
-          REGION: ${{ env.REGION }}
-          REPOSITORY: ${{ env.REPOSITORY }}
-          SERVICE: ${{ env.SERVICE }}
+          docker build -t asia-southeast1-docker.pkg.dev/smarttrack2project/fastapi-repo/fastapi-postgres-demo:latest .
+
+      - name: Push Docker Image
+        run: |
+          docker push asia-southeast1-docker.pkg.dev/smarttrack2project/fastapi-repo/fastapi-postgres-demo:latest
 
       - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: ${{ env.SERVICE }}
-          image: "${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE }}:${{ github.sha }}"
-          region: ${{ env.REGION }}
+        run: |
+          gcloud run deploy fastapi-postgres-demo \
+            --image asia-southeast1-docker.pkg.dev/smarttrack2project/fastapi-repo/fastapi-postgres-demo:latest \
+            --region asia-southeast1 \
+            --platform managed \
+            --allow-unauthenticated
