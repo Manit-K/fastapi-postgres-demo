@@ -1,0 +1,23 @@
+{
+    // Auto detect Python virtual environment
+    "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+
+    // VS Code terminal จะ Activate .venv อัตโนมัติ
+    "python.terminal.activateEnvironment": true,
+
+    // ให้ VS Code เลือก interpreter ตามโฟลเดอร์โปรเจกต์นี้เสมอ
+    "python.pythonPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+
+    // สร้าง terminal ใหม่แล้ว activate อัตโนมัติ
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "args": [
+                "-NoExit",
+                "-Command",
+                "& { . ${workspaceFolder}\\.venv\\Scripts\\Activate.ps1 }"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell"
+}

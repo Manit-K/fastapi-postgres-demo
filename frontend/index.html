@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FastAPI + PostgreSQL Demo</title>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: 40px auto; }
+        input { padding: 8px; width: 300px; }
+        button { padding: 8px 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 10px; text-align: left; }
+        th { background: #f0f0f0; }
+    </style>
+</head>
+<body>
+
+<h2>Add User</h2>
+<input type="text" id="nameInput" placeholder="Enter name">
+<button onclick="addUser()">Add User</button>
+
+<h2>User List</h2>
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+        </tr>
+    </thead>
+    <tbody id="userTable"></tbody>
+</table>
+
+<script>
+    const API_URL = "http://127.0.0.1:8000";
+
+    async function loadUsers() {
+        const res = await fetch(`${API_URL}/users`);
+        const data = await res.json();
+
+        const table = document.getElementById("userTable");
+        table.innerHTML = "";
+
+        data.forEach(user => {
+            table.innerHTML += `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.name}</td>
+                </tr>
+            `;
+        });
+    }
+
+    async function addUser() {
+        const name = document.getElementById("nameInput").value;
+        if (!name) return alert("Please enter a name");
+
+        await fetch(`${API_URL}/users?name=${name}`, {
+            method: "POST"
+        });
+
+        document.getElementById("nameInput").value = "";
+        loadUsers();
+    }
+
+    // Load users when the page opens
+    loadUsers();
+</script>
+
+</body>
+</html>
